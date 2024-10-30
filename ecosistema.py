@@ -1,7 +1,6 @@
 import pygame
 import random
 import math
-import time
 
 pygame.init()
 WIDTH, HEIGHT = 1024, 768
@@ -23,77 +22,38 @@ HUNTER_SHOOT_RANGE = 100
 HUNTER_RELOAD_TIME = 2000
 HUNTER_SPEED = 1.1
 
-# Definir posiciones de refugios para cada sección
+# Refugios para cada sección
 REFUGE_POSITIONS = [(WIDTH // 6, HEIGHT // 2), (WIDTH // 2, HEIGHT // 2), (5 * WIDTH // 6, HEIGHT // 2)]
-
-# Colores de herbívoros y carnívoros
 HERBIVORE_COLORS = [(0, 255, 0), (34, 139, 34), (0, 128, 0)]
 CARNIVORE_RED_COLOR = (255, 0, 0)
 CARNIVORE_ORANGE_COLOR = (255, 140, 0)
 HUNTER_COLOR = (0, 0, 255)
 
-plants = []
+plants = [{"pos": [random.randint(0, WIDTH), random.randint(0, HEIGHT)], "color": (150, 150, 150)} for _ in range(NUM_PLANTS)]
 herbivores = []
 carnivores = []
 
-for _ in range(NUM_PLANTS):
-    x = random.randint(0, WIDTH)
-    y = random.randint(0, HEIGHT)
-    plants.append({"pos": [x, y], "color": (150, 150, 150)})
-
+# Creación de herbívoros y carnívoros en distintas secciones
 def create_herbivores(num, color, section_idx):
-    """Genera herbívoros para una sección específica."""
     x_start = (section_idx * WIDTH) // 3
     x_end = ((section_idx + 1) * WIDTH) // 3
     for _ in range(num):
-        x = random.randint(x_start, x_end)
-        y = random.randint(0, HEIGHT)
-        herbivores.append({
-            "pos": [x, y], 
-            "color": color, 
-            "energy": HERBIVORE_MAX_ENERGY, 
-            "eaten_plants": 0, 
-            "in_refuge": False,
-            "refuge_start_time": None,
-            "section": section_idx
-        })
+        x, y = random.randint(x_start, x_end), random.randint(0, HEIGHT)
+        herbivores.append({"pos": [x, y], "color": color, "energy": HERBIVORE_MAX_ENERGY, "eaten_plants": 0,
+                           "in_refuge": False, "refuge_start_time": None, "section": section_idx})
 
-# Crear herbívoros en secciones divididas
 create_herbivores(NUM_HERBIVORE_TYPE1, HERBIVORE_COLORS[0], 0)
 create_herbivores(NUM_HERBIVORE_TYPE2, HERBIVORE_COLORS[1], 1)
 create_herbivores(NUM_HERBIVORE_TYPE3, HERBIVORE_COLORS[2], 2)
 
-# Crear carnívoros rojos y naranjas
 for _ in range(NUM_CARNIVORES_RED):
-    x = random.randint(0, WIDTH)
-    y = random.randint(0, HEIGHT)
-    carnivores.append({
-        "pos": [x, y], 
-        "color": CARNIVORE_RED_COLOR, 
-        "energy": CARNIVORE_MAX_ENERGY,
-        "recharging": False,
-        "recharge_start_time": None,
-        "type": "red"
-    })
-
+    carnivores.append({"pos": [random.randint(0, WIDTH), random.randint(0, HEIGHT)], "color": CARNIVORE_RED_COLOR,
+                       "energy": CARNIVORE_MAX_ENERGY, "recharging": False, "recharge_start_time": None, "type": "red"})
 for _ in range(NUM_CARNIVORES_ORANGE):
-    x = random.randint(0, WIDTH)
-    y = random.randint(0, HEIGHT)
-    carnivores.append({
-        "pos": [x, y], 
-        "color": CARNIVORE_ORANGE_COLOR, 
-        "energy": CARNIVORE_MAX_ENERGY,
-        "recharging": False,
-        "recharge_start_time": None,
-        "type": "orange"
-    })
+    carnivores.append({"pos": [random.randint(0, WIDTH), random.randint(0, HEIGHT)], "color": CARNIVORE_ORANGE_COLOR,
+                       "energy": CARNIVORE_MAX_ENERGY, "recharging": False, "recharge_start_time": None, "type": "orange"})
 
-hunter = {
-    "pos": [WIDTH // 2, HEIGHT // 2],
-    "color": HUNTER_COLOR,
-    "last_shot_time": None,
-    "target": None
-}
+hunter = {"pos": [WIDTH // 2, HEIGHT // 2], "color": HUNTER_COLOR, "last_shot_time": None, "target": None}
 
 def move_towards(organism, target, speed=1):
     dx, dy = target[0] - organism["pos"][0], target[1] - organism["pos"][1]
@@ -113,30 +73,25 @@ while running:
             running = False
 
     screen.fill((0, 0, 0))
-
-    # Dibujar líneas de división
     pygame.draw.line(screen, (100, 100, 100), (WIDTH // 3, 0), (WIDTH // 3, HEIGHT), 1)
     pygame.draw.line(screen, (100, 100, 100), (2 * WIDTH // 3, 0), (2 * WIDTH // 3, HEIGHT), 1)
-
-    # Dibujar refugios en cada sección
     for pos in REFUGE_POSITIONS:
         pygame.draw.circle(screen, (0, 0, 255), pos, REFUGE_RADIUS, 1)
 
-    # Plantas
     for plant in plants:
         pygame.draw.circle(screen, plant["color"], (int(plant["pos"][0]), int(plant["pos"][1])), 3)
 
-    # Herbívoros
     for herbivore in herbivores[:]:
         herbivore["energy"] -= 0.1
-
+        if herbivore["energy"] <= 0:
+            herbivores.remove(herbivore)
+            continue
         if herbivore["in_refuge"]:
             if pygame.time.get_ticks() - herbivore["refuge_start_time"] > REFUGE_DURATION:
                 herbivore["in_refuge"] = False
             else:
                 herbivore["energy"] = HERBIVORE_MAX_ENERGY
                 continue
-
         if herbivore["eaten_plants"] >= 2:
             if is_in_refuge(herbivore["pos"], herbivore["section"]):
                 herbivore["in_refuge"] = True
@@ -144,22 +99,17 @@ while running:
                 herbivore["eaten_plants"] = 0
             else:
                 move_towards(herbivore, REFUGE_POSITIONS[herbivore["section"]])
-                pygame.draw.circle(screen, herbivore["color"], (int(herbivore["pos"][0]), int(herbivore["pos"][1])), 5)
-                continue
-
+            continue
         closest_plant = min(plants, key=lambda p: math.hypot(herbivore["pos"][0] - p["pos"][0], herbivore["pos"][1] - p["pos"][1]), default=None)
         if closest_plant and math.hypot(herbivore["pos"][0] - closest_plant["pos"][0], herbivore["pos"][1] - closest_plant["pos"][1]) < 5:
             herbivore["energy"] += 20
             herbivore["eaten_plants"] += 1
             plants.remove(closest_plant)
-
-        if herbivore["energy"] <= 0:
-            herbivores.remove(herbivore)
         else:
-            pygame.draw.circle(screen, herbivore["color"], (int(herbivore["pos"][0]), int(herbivore["pos"][1])), 5)
             move_towards(herbivore, closest_plant["pos"] if closest_plant else herbivore["pos"])
+        pygame.draw.circle(screen, herbivore["color"], (int(herbivore["pos"][0]), int(herbivore["pos"][1])), 5)
 
-    # Carnívoros
+    # Carnivores y cazador
     for carnivore in carnivores[:]:
         if carnivore["recharging"]:
             if pygame.time.get_ticks() - carnivore["recharge_start_time"] >= CARNIVORE_RECHARGE_TIME:
@@ -216,9 +166,8 @@ while running:
             move_towards(hunter, nearest_carnivore["pos"], HUNTER_SPEED)
 
     pygame.draw.circle(screen, hunter["color"], (int(hunter["pos"][0]), int(hunter["pos"][1])), 8)
-
-    # Actualizar la pantalla y esperar un momento para controlar la velocidad de fotogramas
+    
     pygame.display.flip()
-    clock.tick(30)
+    clock.tick(60)
 
 pygame.quit()
