@@ -12,13 +12,14 @@ NUM_PLANTS = 50
 NUM_HERBIVORES = 20
 NUM_CARNIVORES = 10
 HERBIVORE_MAX_ENERGY = 100
-CARNIVORE_MAX_ENERGY = 100
+CARNIVORE_MAX_ENERGY = 150
 REFUGE_RADIUS = 50
 REFUGE_POSITION = (WIDTH - 100, HEIGHT // 2)
 REFUGE_DURATION = 4000
 CARNIVORE_RECHARGE_TIME = 3000
 HUNTER_SHOOT_RANGE = 100
 HUNTER_RELOAD_TIME = 2000
+HUNTER_SPEED = 1.1
 
 plants = []
 herbivores = []
@@ -55,7 +56,8 @@ for _ in range(NUM_CARNIVORES):
 hunter = {
     "pos": [WIDTH // 2, HEIGHT // 2],
     "color": (0, 0, 255),
-    "last_shot_time": None
+    "last_shot_time": None,
+    "target": None
 }
 
 def move_towards(organism, target, speed=1):
@@ -67,6 +69,14 @@ def move_towards(organism, target, speed=1):
 
 def is_in_refuge(pos):
     return math.hypot(pos[0] - REFUGE_POSITION[0], pos[1] - REFUGE_POSITION[1]) < REFUGE_RADIUS
+
+def draw_dotted_line(screen, start_pos, end_pos, color, width=1, dot_length=5):
+    distance = math.hypot(end_pos[0] - start_pos[0], end_pos[1] - start_pos[1])
+    dots = int(distance // (dot_length * 2))
+    for i in range(dots):
+        x = start_pos[0] + (end_pos[0] - start_pos[0]) * (i * dot_length * 2) / distance
+        y = start_pos[1] + (end_pos[1] - start_pos[1]) * (i * dot_length * 2) / distance
+        pygame.draw.circle(screen, color, (int(x), int(y)), width)
 
 running = True
 clock = pygame.time.Clock()
@@ -141,17 +151,37 @@ while running:
             if closest_herbivore:
                 move_towards(carnivore, closest_herbivore["pos"])
 
-    if hunter["last_shot_time"] is None or pygame.time.get_ticks() - hunter["last_shot_time"] >= HUNTER_RELOAD_TIME:
-        closest_carnivore = min(
+    hunter["target"] = None
+    highest_threat_herbivore = None
+    closest_threatening_carnivore = None
+
+    for herbivore in herbivores:
+        threatening_carnivore = min(
             carnivores,
-            key=lambda c: math.hypot(hunter["pos"][0] - c["pos"][0], hunter["pos"][1] - c["pos"][1]),
+            key=lambda c: math.hypot(herbivore["pos"][0] - c["pos"][0], herbivore["pos"][1] - c["pos"][1]),
             default=None
         )
-        if closest_carnivore and math.hypot(hunter["pos"][0] - closest_carnivore["pos"][0], hunter["pos"][1] - closest_carnivore["pos"][1]) <= HUNTER_SHOOT_RANGE:
-            hunter["last_shot_time"] = pygame.time.get_ticks()
-            carnivores.remove(closest_carnivore)
+        if threatening_carnivore and (
+            highest_threat_herbivore is None or 
+            math.hypot(threatening_carnivore["pos"][0] - herbivore["pos"][0], threatening_carnivore["pos"][1] - herbivore["pos"][1]) <
+            math.hypot(closest_threatening_carnivore["pos"][0] - highest_threat_herbivore["pos"][0], closest_threatening_carnivore["pos"][1] - highest_threat_herbivore["pos"][1])
+        ):
+            highest_threat_herbivore = herbivore
+            closest_threatening_carnivore = threatening_carnivore
+
+    if highest_threat_herbivore and closest_threatening_carnivore:
+        move_towards(hunter, highest_threat_herbivore["pos"], HUNTER_SPEED)
+
+        if math.hypot(hunter["pos"][0] - closest_threatening_carnivore["pos"][0], hunter["pos"][1] - closest_threatening_carnivore["pos"][1]) <= HUNTER_SHOOT_RANGE:
+            hunter["target"] = closest_threatening_carnivore
+            if hunter["last_shot_time"] is None or pygame.time.get_ticks() - hunter["last_shot_time"] >= HUNTER_RELOAD_TIME:
+                hunter["last_shot_time"] = pygame.time.get_ticks()
+                carnivores.remove(closest_threatening_carnivore)
 
     pygame.draw.circle(screen, hunter["color"], (int(hunter["pos"][0]), int(hunter["pos"][1])), 8)
+
+    if hunter["target"]:
+        draw_dotted_line(screen, hunter["pos"], hunter["target"]["pos"], (255, 255, 255))
 
     pygame.display.flip()
     clock.tick(60)
