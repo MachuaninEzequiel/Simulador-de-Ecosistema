@@ -1,47 +1,36 @@
 import pygame
-from plantas import initialize_plants
-from herbivoros import initialize_herbivores, update_herbivores
-from carnivoros import initialize_carnivores, update_carnivores
-from cazador import initialize_hunter, update_hunter
-from refugio import REFUGE_POSITION, REFUGE_RADIUS
+import random
+from herbivoros import Herbivore
+from carnivoros import Carnivore
+from plantas import Plant
+from cazador import Hunter
+from refugio import REFUGE_POSITION, REFUGE_RADIUS, is_in_refuge
 
-# Inicialización de Pygame
-pygame.init()
 WIDTH, HEIGHT = 1024, 768
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Simulador de Ecosistema con Cazador")
 
-# Inicializar entidades del ecosistema
-plants = initialize_plants(50)
-herbivores = initialize_herbivores(20)
-carnivores = initialize_carnivores(10)
-hunter = initialize_hunter()
+NUM_PLANTS = 50
+NUM_HERBIVORES = 20
+NUM_CARNIVORES = 10
 
-# Bucle principal del juego
-running = True
+plants = [Plant(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(NUM_PLANTS)]
+herbivores = [Herbivore(random.randint(0, WIDTH), random.randint(0, HEIGHT), (0, 255, 0), "herbivore_type_1") for _ in range(NUM_HERBIVORES)]
+carnivores = [Carnivore(random.randint(0, WIDTH), random.randint(0, HEIGHT), (255, 0, 0), "carnivore_type_1") for _ in range(NUM_CARNIVORES)]
+hunter = Hunter(WIDTH // 2, HEIGHT // 2)
+
 clock = pygame.time.Clock()
+running = True
 while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
     screen.fill((0, 0, 0))
-    pygame.draw.circle(screen, (0, 0, 255), REFUGE_POSITION, REFUGE_RADIUS)
-
-    # Actualizar y dibujar plantas
+    pygame.draw.circle(screen, (0, 0, 255), REFUGE_POSITION, REFUGE_RADIUS, 1)
     for plant in plants:
-        pygame.draw.circle(screen, plant["color"], (int(plant["pos"][0]), int(plant["pos"][1])), 3)
-
-    # Actualizar y dibujar herbívoros
-    update_herbivores(herbivores, plants)
-
-    # Actualizar y dibujar carnívoros
-    update_carnivores(carnivores)
-
-    # Actualizar y dibujar cazador
-    update_hunter(hunter, herbivores, carnivores)
-
+        pygame.draw.circle(screen, plant.color, (int(plant.pos[0]), int(plant.pos[1])), 3)
+    for herbivore in herbivores[:]:
+        if not herbivore.update(plants, REFUGE_POSITION):
+            herbivores.remove(herbivore)
+    for carnivore in carnivores[:]:
+        carnivore.update(herbivores)
+    hunter.hunt(herbivores)
     pygame.display.flip()
     clock.tick(60)
-
 pygame.quit()
